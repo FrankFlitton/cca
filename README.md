@@ -40,6 +40,19 @@ cargo run --release
 
 The binary ends up at `target/release/cca`.
 
+### macOS app bundle
+
+To get a proper `Contrast.app`, with its icon in the Dock, Finder and
+Spotlight even when it isn't running:
+
+```sh
+scripts/bundle-macos.sh             # builds target/release/Contrast.app
+scripts/bundle-macos.sh --install   # ...and copies it to ~/Applications
+```
+
+The script builds the `.icns` from `assets/icon.png` with `sips` and
+`iconutil`, writes `Info.plist`, and ad-hoc signs the bundle.
+
 ### Platforms
 
 macOS is the main target. The app also builds for Windows and Linux (X11 and
