@@ -23,9 +23,9 @@ const CONTENT: f32 = WIDTH - 2.0 * MARGIN;
 /// Left edge of the content column; labels sit in the column before it.
 const COL: f32 = 78.0;
 const ICON: f32 = 22.0;
-/// Height of the macOS title bar, which the header shares.
+/// Header height when the traffic-light position is unknown (and off macOS).
 const HEADER: f32 = 28.0;
-/// Room left for the macOS traffic-light buttons.
+/// Fallback room left for the macOS traffic-light buttons.
 const TRAFFIC_LIGHTS: f32 = if cfg!(target_os = "macos") { 66.0 } else { 0.0 };
 
 fn main() -> eframe::Result {
@@ -103,6 +103,9 @@ struct App {
     height: f32,
     /// Paper colour last applied to the native window (macOS).
     native_bg: Option<Color32>,
+    /// Header height and title inset, fitted to the traffic lights.
+    header: (f32, f32),
+    header_measured: bool,
     #[cfg(debug_assertions)]
     snapshot: Option<snapshot::Snapshot>,
 }
@@ -120,6 +123,8 @@ impl Default for App {
             copied_at: None,
             height: 0.0,
             native_bg: None,
+            header: (HEADER, TRAFFIC_LIGHTS),
+            header_measured: false,
             #[cfg(debug_assertions)]
             snapshot: None,
         }
@@ -147,6 +152,15 @@ impl eframe::App for App {
                 let _ = frame;
                 self.native_bg = Some(pal.paper);
             }
+        }
+        #[cfg(target_os = "macos")]
+        if !self.header_measured
+            && let Some(t) = macos::traffic_lights(frame)
+        {
+            // Centre the header band on the buttons, and start the title one
+            // button-gap after the last button.
+            self.header = ((2.0 * t.center_y).round(), t.right + t.gap - MARGIN);
+            self.header_measured = true;
         }
         ui.painter().rect_filled(ui.ctx().content_rect(), 0.0, pal.paper);
         let margin = Margin { left: 12, right: 12, top: 0, bottom: 10 };
@@ -209,13 +223,13 @@ impl App {
 
     fn header(&mut self, ui: &mut Ui, pal: Palette) {
         let (rect, resp) =
-            ui.allocate_exact_size(vec2(CONTENT, HEADER), Sense::click_and_drag());
+            ui.allocate_exact_size(vec2(CONTENT, self.header.0), Sense::click_and_drag());
         // The header replaces the title bar, so it has to move the window too.
         if resp.drag_started() {
             ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
         }
         ui.painter().text(
-            pos2(rect.left() + TRAFFIC_LIGHTS, rect.center().y),
+            pos2(rect.left() + self.header.1, rect.center().y),
             Align2::LEFT_CENTER,
             "Contrast",
             bold(13.0),

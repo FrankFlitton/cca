@@ -1,27 +1,35 @@
-//! macOS window tweaks so auto-resizing doesn't flicker.
+//! macOS window tweaks.
 //!
-//! When the window grows or shrinks, Core Animation shows the previous frame
-//! for a moment before the new one arrives. By default it stretches that frame
-//! to the new size (`kCAGravityResize`), which looks like a flicker. Pinning the
-//! layer contents to the top-left keeps the old frame sharp. Painting the window
-//! background in the paper colour makes the newly revealed strip blend in.
+//! Flicker: when the window grows or shrinks, Core Animation shows the previous
+//! frame for a moment before the new one arrives. By default it stretches that
+//! frame to the new size (`kCAGravityResize`), which looks like a flicker.
+//! Pinning the layer contents to the top-left keeps the old frame sharp.
+//! Painting the window background in the paper colour makes the newly revealed
+//! strip blend in.
+//!
+//! Title bar: the header shares the title bar with the traffic-light buttons,
+//! whose position varies between macOS versions, so it is read from AppKit.
 
 use eframe::egui::Color32;
-use objc2_app_kit::{NSColor, NSView};
+use objc2_app_kit::{NSColor, NSView, NSWindowButton};
 use objc2_quartz_core::{CALayer, kCAGravityTopLeft};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-/// Returns true once the render layer was found and configured.
-pub fn pin_contents(frame: &eframe::Frame, background: Color32) -> bool {
-    let Ok(handle) = frame.window_handle() else {
-        return false;
-    };
+fn view(frame: &eframe::Frame) -> Option<&NSView> {
+    let handle = frame.window_handle().ok()?;
     let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
-        return false;
+        return None;
     };
     // SAFETY: winit hands out a valid NSView that lives as long as the window,
     // and we are on the main thread (inside the UI callback).
-    let view: &NSView = unsafe { handle.ns_view.cast().as_ref() };
+    Some(unsafe { handle.ns_view.cast().as_ref() })
+}
+
+/// Returns true once the render layer was found and configured.
+pub fn pin_contents(frame: &eframe::Frame, background: Color32) -> bool {
+    let Some(view) = view(frame) else {
+        return false;
+    };
 
     if let Some(window) = view.window() {
         let c = |v: u8| f64::from(v) / 255.0;
@@ -48,4 +56,34 @@ pub fn pin_contents(frame: &eframe::Frame, background: Color32) -> bool {
         }
     }
     pinned
+}
+
+/// Where the traffic-light buttons sit, in points from the window's top-left.
+#[derive(Clone, Copy, Debug)]
+pub struct TrafficLights {
+    /// Vertical centre of the buttons.
+    pub center_y: f32,
+    /// Right edge of the last (zoom) button.
+    pub right: f32,
+    /// Horizontal gap between neighbouring buttons.
+    pub gap: f32,
+}
+
+pub fn traffic_lights(frame: &eframe::Frame) -> Option<TrafficLights> {
+    let window = view(frame)?.window()?;
+    let height = window.frame().size.height;
+    // Each button's rect in window coordinates (origin bottom-left; with a
+    // full-size content view the window and content share one coordinate space).
+    let rect = |which| {
+        let button = window.standardWindowButton(which)?;
+        Some(button.convertRect_toView(button.bounds(), None))
+    };
+    let close = rect(NSWindowButton::CloseButton)?;
+    let mini = rect(NSWindowButton::MiniaturizeButton)?;
+    let zoom = rect(NSWindowButton::ZoomButton)?;
+    Some(TrafficLights {
+        center_y: (height - (close.origin.y + close.size.height / 2.0)) as f32,
+        right: (zoom.origin.x + zoom.size.width) as f32,
+        gap: (mini.origin.x - (close.origin.x + close.size.width)) as f32,
+    })
 }
