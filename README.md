@@ -63,6 +63,12 @@ The interface uses a Swiss typographic style:
 - Hierarchy comes from size and weight. The ratio is the largest element on
   screen, and its `:1` is muted.
 
+The icon is a "C" split down the middle and inverted across ink and paper,
+the contrast pair the app measures, with the UI's single red accent. It is generated from
+the bundled Inter Bold by `tools/make_icon.py`.
+
+<img src="assets/icon.png" width="96" alt="App icon: a C split down the middle, black on off-white on the left and white on black on the right, with a small red square">
+
 The window sizes itself to its content and grows when sliders are opened. On
 macOS, rendering uses wgpu (Metal) and the render layer is pinned to the
 top-left, so the window doesn't flicker or stretch while it resizes.
@@ -92,6 +98,7 @@ cargo clippy
 | `src/picker.rs` | Screen colour picker (`NSColorSampler` on macOS)            |
 | `src/macos.rs`  | Window tweaks that stop auto-resize from flickering         |
 | `src/snapshot.rs` | Debug-only: render the window to an image file           |
+| `tools/make_icon.py` | Renders `assets/icon.png` (needs Pillow)              |
 
 Debug builds can render themselves to a BMP and exit, which is useful for
 checking layout changes without screen-recording permission:
